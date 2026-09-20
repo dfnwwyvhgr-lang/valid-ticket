@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #f3f3f7;
+    color: #111;
+    font-family: Arial, sans-serif;
+}
+
+header {
+    background: #111;
+    color: white;
+    padding: 25px 20px;
+    text-align: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 32px;
+}
+
+header p {
+    margin: 8px 0 0;
+    color: #aaa;
+}
+
+main {
+    max-width: 600px;
+    margin: auto;
+    padding: 18px;
+}
+
+.box {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 5px 20px #00000012;
+}
+
+h2 {
+    margin-top: 0;
+}
+
+input {
+    width: 100%;
+    padding: 15px;
+    margin: 6px 0;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    font-size: 16px;
+}
+
+button {
+    width: 100%;
+    padding: 15px;
+    margin-top: 10px;
+    border: 0;
+    border-radius: 12px;
+    background: #111;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.stats {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.stat {
+    flex: 1;
+    background: white;
+    border-radius: 16px;
+    padding: 15px 5px;
+    text-align: center;
+}
+
+.stat b {
+    display: block;
+    font-size: 25px;
+}
+
+.ticket {
+    background: white;
+    border-radius: 22px;
+    overflow: hidden;
+    margin-top: 18px;
+    box-shadow: 0 6px 20px #00000015;
+}
+
+.ticket-header {
+    background: linear-gradient(135deg, #111, #444);
+    color: white;
+    padding: 22px;
+}
+
+.ticket-header h3 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.ticket-header p {
+    margin-bottom: 0;
+    color: #bbb;
+}
+
+.ticket-body {
+    padding: 20px;
+}
+
+.ticket-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.ticket-info small {
+    color: #888;
+}
+
+.ticket-info strong {
+    display: block;
+    margin-top: 4px;
+}
+
+.qr {
+    text-align: center;
+    margin: 25px 0 10px;
+}
+
+.qr img {
+    margin: auto;
+}
+
+.ticket-footer {
+    border-top: 2px dashed #ddd;
+    padding: 15px;
+    text-align: center;
+    color: #777;
+    font-size: 13px;
+}
+
+.ok {
+    background: #dff7e5;
+    color: #137333;
+    padding: 18px;
+    border-radius: 15px;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+.error {
+    background: #ffe0e0;
+    color: #b00020;
+    padding: 18px;
+    border-radius: 15px;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 15px;
+}
+
+#scanner {
+    margin-top: 15px;
+    overflow: hidden;
+    border-radius: 15px;
+}
+
+.hidden {
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>🎟️ Ticket</h1>
+    <p>Gestion des billets et des entrées</p>
+</header>
+
+<main>
+
+    <div class="stats">
+        <div class="stat">
+            <b id="total">0</b>
+            Billets
+        </div>
+
+        <div class="stat">
+            <b id="used">0</b>
+            Entrées
+        </div>
+
+        <div class="stat">
+            <b id="left">0</b>
+            Restants
+        </div>
+    </div>
+
+    <div class="box">
+        <h2>⚙️ Événement</h2>
+
+        <input id="event" placeholder="Nom de la soirée">
+
+        <input id="price" type="number" placeholder="Prix du billet">
+
+        <button onclick="saveEvent()">
+            Enregistrer
+        </button>
+    </div>
+
+    <div class="box">
+        <h2>➕ Nouveau billet</h2>
+
+        <input id="firstname" placeholder="Prénom">
+
+        <input id="lastname" placeholder="Nom">
+
+        <button onclick="createTicket()">
+            Créer le billet
+        </button>
+    </div>
+
+    <div class="box">
+        <h2>📷 Scanner une entrée</h2>
+
+        <button onclick="scan()">
+            Ouvrir la caméra
+        </button>
+
+        <div id="scanner"></div>
+
+        <div id="result"></div>
+    </div>
+
+    <div class="box">
+        <h2>🎟️ Billets</h2>
+
+        <div id="tickets"></div>
+    </div>
+
+</main>
+
+<script>
+
+let tickets = JSON.parse(
+    localStorage.getItem("tickets") || "[]"
+);
+
+let eventInfo = JSON.parse(
+    localStorage.getItem("eventInfo") ||
+    '{"name":"","price":""}'
+);
+
+document.getElementById("event").value = eventInfo.name;
+document.getElementById("price").value = eventInfo.price;
+
+
+/* ÉVÉNEMENT */
+
+function saveEvent() {
+
+    eventInfo = {
+        name: document.getElementById("event").value || "Soirée",
+        price: document.getElementById("price").value || "0"
+    };
+
+    localStorage.setItem(
+        "eventInfo",
+        JSON.stringify(eventInfo)
+    );
+
+    alert("Événement enregistré !");
+}
+
+
+/* CODE UNIQUE */
+
+function makeCode() {
+
+    const characters =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+    let code = "";
+
+    for (let i = 0; i < 10; i++) {
+
+        code += characters[
+            Math.floor(
+                Math.random() * characters.length
+            )
+        ];
+
+    }
+
+    return code;
+}
+
+
+/* CRÉER UN BILLET */
+
+function createTicket() {
+
+    const firstname =
+        document.getElementById("firstname").value.trim();
+
+    const lastname =
+        document.getElementById("lastname").value.trim();
+
+    if (!firstname || !lastname) {
+
+        alert("Entre le prénom et le nom.");
+
+        return;
+    }
+
+    const ticket = {
+
+        code: makeCode(),
+
+        firstname: firstname,
+
+        lastname: lastname,
+
+        event: eventInfo.name || "Soirée",
+
+        price: eventInfo.price || "0",
+
+        used: false,
+
+        date: new Date().toISOString()
+
+    };
+
+    tickets.push(ticket);
+
+    localStorage.setItem(
+        "tickets",
+        JSON.stringify(tickets)
+    );
+
+    document.getElementById("firstname").value = "";
+
+    document.getElementById("lastname").value = "";
+
+    displayTickets();
+
+    alert("🎟️ Billet créé !");
+}
+
+
+/* AFFICHER LES BILLETS */
+
+function displayTickets() {
+
+    const container =
+        document.getElementById("tickets");
+
+    container.innerHTML = "";
+
+    let used = 0;
+
+    tickets.forEach((ticket, index) => {
+
+        if (ticket.used) {
+            used++;
+        }
+
+        const div =
+            document.createElement("div");
+
+        div.className = "ticket";
+
+        div.innerHTML = `
+
+            <div class="ticket-header">
+
+                <h3>
+                    ${ticket.event}
+                </h3>
+
+                <p>
+                    Billet d'entrée officiel
+                </p>
+
+            </div>
+
+            <div class="ticket-body">
+
+                <div class="ticket-info">
+
+                    <div>
+                        <small>Participant</small>
+                        <strong>
+                            ${ticket.firstname}
+                            ${ticket.lastname}
+                        </strong>
+                    </div>
+
+                    <div>
+                        <small>Prix</small>
+                        <strong>
+                            ${ticket.price} €
+                        </strong>
+                    </div>
+
+                    <div>
+                        <small>Billet</small>
+                        <strong>
+                            #${String(index + 1).padStart(3,"0")}
+                        </strong>
+                    </div>
+
+                    <div>
+                        <small>Code</small>
+                        <strong>
+                            ${ticket.code}
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="qr" id="qr${index}"></div>
+
+                ${
+                    ticket.used
+                    ? '<div class="error">🔴 BILLET DÉJÀ UTILISÉ</div>'
+                    : '<div class="ok">✅ BILLET VALIDE</div>'
+                }
+
+            </div>
+
+            <div class="ticket-footer">
+
+                Présentez ce QR code à l'entrée
+
+            </div>
+        `;
+
+        container.appendChild(div);
+
+        new QRCode(
+            document.getElementById("qr" + index),
+            {
+                text: ticket.code,
+                width: 180,
+                height: 180
+            }
+        );
+
+    });
+
+    document.getElementById("total").textContent =
+        tickets.length;
+
+    document.getElementById("used").textContent =
+        used;
+
+    document.getElementById("left").textContent =
+        tickets.length - used;
+}
+
+
+/* SCANNER */
+
+let scanner = null;
+
+function scan() {
+
+    if (scanner) {
+        return;
+    }
+
+    scanner = new Html5Qrcode("scanner");
+
+    scanner.start(
+
+        {
+            facingMode: "environment"
+        },
+
+        {
+            fps: 10,
+            qrbox: 250
+        },
+
+        function(code) {
+
+            checkTicket(code);
+
+            scanner.stop().then(function() {
+
+                scanner.clear();
+
+                scanner = null;
+
+            });
+
+        },
+
+        function() {}
+
+    ).catch(function() {
+
+        alert(
+            "Impossible d'ouvrir la caméra. " +
+            "Autorise l'accès à la caméra dans Safari."
+        );
+
+        scanner = null;
+
+    });
+}
+
+
+/* VÉRIFICATION */
+
+function checkTicket(code) {
+
+    const result =
+        document.getElementById("result");
+
+    const ticket =
+        tickets.find(function(t) {
+
+            return t.code === code.trim();
+
+        });
+
+    if (!ticket) {
+
+        result.className = "error";
+
+        result.innerHTML =
+            "❌ BILLET INVALIDE";
+
+        return;
+    }
+
+    if (ticket.used) {
+
+        result.className = "error";
+
+        result.innerHTML =
+            "🔴 BILLET DÉJÀ UTILISÉ<br>" +
+            ticket.firstname +
+            " " +
+            ticket.lastname;
+
+        return;
+    }
+
+    ticket.used = true;
+
+    localStorage.setItem(
+        "tickets",
+        JSON.stringify(tickets)
+    );
+
+    result.className = "ok";
+
+    result.innerHTML =
+        "✅ ENTRÉE AUTORISÉE<br>" +
+        ticket.firstname +
+        " " +
+        ticket.lastname;
+
+    displayTickets();
+}
+
+
+displayTickets();
+
+</script>
+
+</body>
+</html>
